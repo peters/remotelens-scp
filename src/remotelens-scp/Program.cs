@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using HumanBytes;
 using remotelens_scp.Mono.Options;
 using Renci.SshNet;
@@ -24,26 +25,13 @@ namespace remotelens_scp
             _opts = new OptionSet
             {
                 "Usage: remotelens-scp.exe command [OPTS]",
-                "Upload files using SCP",
+                "Upload files using SCP.",
                 "",
                 "Commands:",
-                {"host=", "Remote SSH server (e.g sftp.domeneshop.no)", _ => arguments.Host = _},
+                {"h|?|help", "Display help and exit.", _ => actionType = ActionType.DisplayHelp },
+                {"v|version", "Display current version of this file.", _ => actionType = ActionType.DisplayVersion },
                 {
-                    "port=", "Port to use when connecting (default: 22)", _ =>
-                    {
-                        int port;
-                        int.TryParse(_, out port);
-                        arguments.Port = port <= 0 ? arguments.Port : port;
-                    }
-                },
-                {"username=", "Username to use when connecting", _ => arguments.Username = _},
-                {"password=", "Password to use when connecting", _ => arguments.Password = _},
-                {"ppk=", "Private key file to use when connecting", _ => arguments.PrivateKeyFile = _},
-                "",
-                "Options:",
-                {"h|?|help", "Display Help and exit", _ => arguments.DisplayHelp = true},
-                {
-                    "upload-files=", "The local files you wish to upload. (e.g C:\\test.txt,C:\\test2.txt))", _ =>
+                    "upload-files=", "A list of files you wish to upload.", _ =>
                     {
                         actionType = ActionType.UploadFile;
                         arguments.UploadFiles = _;
@@ -51,20 +39,41 @@ namespace remotelens_scp
                 },
                 {
                     "upload-destination=",
-                    "The remote destination location for where to store uploaded files. (e.g /home/user)",
+                    "The destination folder of uploaded files.",
                     _ =>
                     {
                         actionType = ActionType.UploadFile;
                         arguments.UploadDestination = _;
                     }
-                }
+                },
+                "",
+                "Options:",
+                {"host=", "Remote server address (e.g sftp.google.com)", _ => arguments.Host = _},
+                {
+                    "port=", "Remote port (default: 22)", _ =>
+                    {
+                        int port;
+                        int.TryParse(_, out port);
+                        arguments.Port = port <= 0 ? arguments.Port : port;
+                    }
+                },
+                {"username=", "A username to use during authentication.", _ => arguments.Username = _},
+                {"password=", "A password to use during authentication.", _ => arguments.Password = _},
+                {"ppk=", "Path to private key.", _ => arguments.PrivateKeyFile = _}
             };
 
             _opts.Parse(args);
 
-            if (actionType == ActionType.None || arguments.DisplayHelp)
+            if (actionType == ActionType.DisplayHelp)
             {
                 _opts.WriteOptionDescriptions(Console.Out);
+                return -1;
+            }
+
+            if (actionType == ActionType.DisplayVersion)
+            {
+                var currentVersion = typeof(Program).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
+                Console.WriteLine("Current version is: {0}", currentVersion);
                 return -1;
             }
 
@@ -218,47 +227,7 @@ namespace remotelens_scp
                 : new ScpClient(arguments.Host, arguments.Port, arguments.Username,
                     new PrivateKeyFile(arguments.PrivateKeyStream));
         }
-
-        // Copyright: http://markmintoff.com/2012/09/c-console-progress-bar/
-
-        static void DrawProgressBar(string filename, long current, long filesize, int barSize, char progressCharacter)
-        {
-            Console.CursorVisible = false;
-            var left = Console.CursorLeft;
-            var percentage = current / (decimal)filesize;
-            var chars = (int)Math.Floor(percentage / (1 / (decimal)barSize));
-            string p1 = string.Empty, p2 = string.Empty;
-
-            for (var i = 0; i < chars; i++) p1 += progressCharacter;
-            for (var i = 0; i < barSize - chars; i++) p2 += progressCharacter;
-
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.Write(p1);
-            Console.ForegroundColor = ConsoleColor.DarkGreen;
-            Console.Write(p2);
-
-            Console.ResetColor();
-            Console.Write(" {0}: {1} of {2} - {3:N0}%", filename, current.Bytes(), filesize.Bytes(), percentage * 100);
-            Console.CursorLeft = left;
-
-            if (percentage >= 100)
-            {
-                Console.CursorVisible = true;
-                ClearCurrentConsoleLine();
-                Console.WriteLine("Finished upload of file: {0}", filename);
-            }
-        }
-
-        // Copyright: http://stackoverflow.com/questions/8946808/can-console-clear-be-used-to-only-clear-a-line-instead-of-whole-console
-
-        static void ClearCurrentConsoleLine()
-        {
-            int currentLineCursor = Console.CursorTop;
-            Console.SetCursorPosition(0, Console.CursorTop);
-            Console.Write(new string(' ', Console.WindowWidth));
-            Console.SetCursorPosition(0, currentLineCursor);
-        }
-
+        
         class Arguments
         {
             public string Host { get; set; }
@@ -269,12 +238,12 @@ namespace remotelens_scp
             public MemoryStream PrivateKeyStream { get; set; }
             public string UploadFiles { get; set; }
             public string UploadDestination { get; set; }
-            public bool DisplayHelp { get; set; }
         }
 
         enum ActionType
         {
-            None,
+            DisplayHelp,
+            DisplayVersion,
             UploadFile
         }
     }
