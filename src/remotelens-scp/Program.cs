@@ -218,47 +218,7 @@ namespace remotelens_scp
                 : new ScpClient(arguments.Host, arguments.Port, arguments.Username,
                     new PrivateKeyFile(arguments.PrivateKeyStream));
         }
-
-        // Copyright: http://markmintoff.com/2012/09/c-console-progress-bar/
-
-        static void DrawProgressBar(string filename, long current, long filesize, int barSize, char progressCharacter)
-        {
-            Console.CursorVisible = false;
-            var left = Console.CursorLeft;
-            var percentage = current / (decimal)filesize;
-            var chars = (int)Math.Floor(percentage / (1 / (decimal)barSize));
-            string p1 = string.Empty, p2 = string.Empty;
-
-            for (var i = 0; i < chars; i++) p1 += progressCharacter;
-            for (var i = 0; i < barSize - chars; i++) p2 += progressCharacter;
-
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.Write(p1);
-            Console.ForegroundColor = ConsoleColor.DarkGreen;
-            Console.Write(p2);
-
-            Console.ResetColor();
-            Console.Write(" {0}: {1} of {2} - {3:N0}%", filename, current.Bytes(), filesize.Bytes(), percentage * 100);
-            Console.CursorLeft = left;
-
-            if (percentage >= 100)
-            {
-                Console.CursorVisible = true;
-                ClearCurrentConsoleLine();
-                Console.WriteLine("Finished upload of file: {0}", filename);
-            }
-        }
-
-        // Copyright: http://stackoverflow.com/questions/8946808/can-console-clear-be-used-to-only-clear-a-line-instead-of-whole-console
-
-        static void ClearCurrentConsoleLine()
-        {
-            int currentLineCursor = Console.CursorTop;
-            Console.SetCursorPosition(0, Console.CursorTop);
-            Console.Write(new string(' ', Console.WindowWidth));
-            Console.SetCursorPosition(0, currentLineCursor);
-        }
-
+        
         class Arguments
         {
             public string Host { get; set; }
