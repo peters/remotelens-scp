@@ -9,7 +9,7 @@ param(
     [string]$packageVersion = "0.0.0",
 
     [ValidateSet("debug", "release")]
-    [string]$config = "debug"
+    [string]$config = "release"
 )
 
 # Initialization

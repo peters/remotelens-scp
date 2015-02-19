@@ -10,25 +10,6 @@ namespace remotelens_scp
 {
     internal class Program
     {
-        class Arguments
-        {
-            public string Host { get; set; }
-            public int Port { get; set; }
-            public string Username { get; set; }
-            public string Password { get; set; }
-            public string PrivateKeyFile { get; set; }
-            public MemoryStream PrivateKeyStream { get; set; }
-            public string UploadFiles { get; set; }
-            public string UploadDestination { get; set; }
-            public bool DisplayHelp { get; set; }
-        }
-
-        enum ActionType
-        {
-            None,
-            UploadFile
-        }
-
         static OptionSet _opts;
 
         static int Main(string[] args)
@@ -151,7 +132,7 @@ namespace remotelens_scp
                 return -1;
             }
 
-            var filesToUpload = new List<string>();
+            var filesToUpload = new Dictionary<string, decimal>();
             var parsedUploadFiles = arguments.UploadFiles?.Split(',');
             if (parsedUploadFiles == null)
             {
@@ -166,12 +147,12 @@ namespace remotelens_scp
                     Console.WriteLine("Error: Unable to find local file: {0}", filename);
                     return -1;
                 }
-                if (filesToUpload.Contains(filename))
+                if (filesToUpload.ContainsKey(filename))
                 {
                     Console.WriteLine("Warning: Skipping duplicate filename: {0}", filename);
                     continue;
                 }
-                filesToUpload.Add(filename);
+                filesToUpload.Add(filename, 0);
             }
 
             if (!filesToUpload.Any())
@@ -183,20 +164,29 @@ namespace remotelens_scp
             using (var scp = WithScpClient(arguments))
             using (arguments.PrivateKeyStream)
             {
+                var uploadProgress = new Dictionary<string, decimal>();
+
                 scp.Uploading += (sender, args) =>
                 {
-                    var uploaded = (double)((args.Uploaded / args.Size) * 100) / 100;
-                    Console.WriteLine("Uploading file {0} ({1}). Progress: {2:P0}", args.Filename, args.Size.Bytes(), uploaded);
-                    if (uploaded >= 100)
+                    var percentage = Math.Floor((decimal)args.Uploaded / args.Size * 100);
+
+                    decimal previousPercentage;
+                    if (!uploadProgress.TryGetValue(args.Filename, out previousPercentage))
                     {
-                        Console.WriteLine("Finished uploading file {0}.", args.Filename);
+                        uploadProgress.Add(args.Filename, 0);
+                    }
+                    else
+                    {
+                        uploadProgress[args.Filename] = percentage;
+                    }
+
+                    if (previousPercentage != percentage || percentage >= 100)
+                    {
+                        Console.WriteLine("{0}: {1} of {2} - {3:N0}%", args.Filename, args.Uploaded.Bytes(), args.Size.Bytes(), percentage);
                     }
                 };
 
-                scp.ErrorOccurred += (sender, args) =>
-                {
-                    Console.WriteLine("SCP Error: {0}", args.Exception.Message);
-                };
+                scp.ErrorOccurred += (sender, args) => { Console.WriteLine("SCP Error: {0}", args.Exception.Message); };
 
                 Console.WriteLine("Connecting to server {0} on port {1}", arguments.Host, arguments.Port);
 
@@ -209,9 +199,9 @@ namespace remotelens_scp
                 }
 
                 Console.WriteLine("Preparing to upload {0} files.", filesToUpload.Count);
-                foreach (var filename in filesToUpload)
+                foreach (var pair in filesToUpload)
                 {
-                    scp.Upload(new FileInfo(filename), arguments.UploadDestination);
+                    scp.Upload(new FileInfo(pair.Key), arguments.UploadDestination);
                 }
 
                 Console.WriteLine("Finished, disconnecting.");
@@ -223,9 +213,69 @@ namespace remotelens_scp
 
         static ScpClient WithScpClient(Arguments arguments)
         {
-            return arguments.PrivateKeyStream == null ?
-                new ScpClient(arguments.Host, arguments.Port, arguments.Password) :
-                new ScpClient(arguments.Host, arguments.Port, arguments.Username, new PrivateKeyFile(arguments.PrivateKeyStream));
+            return arguments.PrivateKeyStream == null
+                ? new ScpClient(arguments.Host, arguments.Port, arguments.Password)
+                : new ScpClient(arguments.Host, arguments.Port, arguments.Username,
+                    new PrivateKeyFile(arguments.PrivateKeyStream));
+        }
+
+        // Copyright: http://markmintoff.com/2012/09/c-console-progress-bar/
+
+        static void DrawProgressBar(string filename, long current, long filesize, int barSize, char progressCharacter)
+        {
+            Console.CursorVisible = false;
+            var left = Console.CursorLeft;
+            var percentage = current / (decimal)filesize;
+            var chars = (int)Math.Floor(percentage / (1 / (decimal)barSize));
+            string p1 = string.Empty, p2 = string.Empty;
+
+            for (var i = 0; i < chars; i++) p1 += progressCharacter;
+            for (var i = 0; i < barSize - chars; i++) p2 += progressCharacter;
+
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.Write(p1);
+            Console.ForegroundColor = ConsoleColor.DarkGreen;
+            Console.Write(p2);
+
+            Console.ResetColor();
+            Console.Write(" {0}: {1} of {2} - {3:N0}%", filename, current.Bytes(), filesize.Bytes(), percentage * 100);
+            Console.CursorLeft = left;
+
+            if (percentage >= 100)
+            {
+                Console.CursorVisible = true;
+                ClearCurrentConsoleLine();
+                Console.WriteLine("Finished upload of file: {0}", filename);
+            }
+        }
+
+        // Copyright: http://stackoverflow.com/questions/8946808/can-console-clear-be-used-to-only-clear-a-line-instead-of-whole-console
+
+        static void ClearCurrentConsoleLine()
+        {
+            int currentLineCursor = Console.CursorTop;
+            Console.SetCursorPosition(0, Console.CursorTop);
+            Console.Write(new string(' ', Console.WindowWidth));
+            Console.SetCursorPosition(0, currentLineCursor);
+        }
+
+        class Arguments
+        {
+            public string Host { get; set; }
+            public int Port { get; set; }
+            public string Username { get; set; }
+            public string Password { get; set; }
+            public string PrivateKeyFile { get; set; }
+            public MemoryStream PrivateKeyStream { get; set; }
+            public string UploadFiles { get; set; }
+            public string UploadDestination { get; set; }
+            public bool DisplayHelp { get; set; }
+        }
+
+        enum ActionType
+        {
+            None,
+            UploadFile
         }
     }
 }
