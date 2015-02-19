@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using HumanBytes;
 using remotelens_scp.Mono.Options;
 using Renci.SshNet;
@@ -24,26 +25,13 @@ namespace remotelens_scp
             _opts = new OptionSet
             {
                 "Usage: remotelens-scp.exe command [OPTS]",
-                "Upload files using SCP",
+                "Upload files using SCP.",
                 "",
                 "Commands:",
-                {"host=", "Remote SSH server (e.g sftp.domeneshop.no)", _ => arguments.Host = _},
+                {"h|?|help", "Display help and exit.", _ => actionType = ActionType.DisplayHelp },
+                {"v|version", "Display current version of this file.", _ => actionType = ActionType.DisplayVersion },
                 {
-                    "port=", "Port to use when connecting (default: 22)", _ =>
-                    {
-                        int port;
-                        int.TryParse(_, out port);
-                        arguments.Port = port <= 0 ? arguments.Port : port;
-                    }
-                },
-                {"username=", "Username to use when connecting", _ => arguments.Username = _},
-                {"password=", "Password to use when connecting", _ => arguments.Password = _},
-                {"ppk=", "Private key file to use when connecting", _ => arguments.PrivateKeyFile = _},
-                "",
-                "Options:",
-                {"h|?|help", "Display Help and exit", _ => arguments.DisplayHelp = true},
-                {
-                    "upload-files=", "The local files you wish to upload. (e.g C:\\test.txt,C:\\test2.txt))", _ =>
+                    "upload-files=", "A list of files you wish to upload.", _ =>
                     {
                         actionType = ActionType.UploadFile;
                         arguments.UploadFiles = _;
@@ -51,20 +39,41 @@ namespace remotelens_scp
                 },
                 {
                     "upload-destination=",
-                    "The remote destination location for where to store uploaded files. (e.g /home/user)",
+                    "The destination folder of uploaded files.",
                     _ =>
                     {
                         actionType = ActionType.UploadFile;
                         arguments.UploadDestination = _;
                     }
-                }
+                },
+                "",
+                "Options:",
+                {"host=", "Remote server address (e.g sftp.google.com)", _ => arguments.Host = _},
+                {
+                    "port=", "Remote port (default: 22)", _ =>
+                    {
+                        int port;
+                        int.TryParse(_, out port);
+                        arguments.Port = port <= 0 ? arguments.Port : port;
+                    }
+                },
+                {"username=", "A username to use during authentication.", _ => arguments.Username = _},
+                {"password=", "A password to use during authentication.", _ => arguments.Password = _},
+                {"ppk=", "Path to private key.", _ => arguments.PrivateKeyFile = _}
             };
 
             _opts.Parse(args);
 
-            if (actionType == ActionType.None || arguments.DisplayHelp)
+            if (actionType == ActionType.DisplayHelp)
             {
                 _opts.WriteOptionDescriptions(Console.Out);
+                return -1;
+            }
+
+            if (actionType == ActionType.DisplayVersion)
+            {
+                var currentVersion = typeof(Program).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
+                Console.WriteLine("Current version is: {0}", currentVersion);
                 return -1;
             }
 
@@ -229,12 +238,12 @@ namespace remotelens_scp
             public MemoryStream PrivateKeyStream { get; set; }
             public string UploadFiles { get; set; }
             public string UploadDestination { get; set; }
-            public bool DisplayHelp { get; set; }
         }
 
         enum ActionType
         {
-            None,
+            DisplayHelp,
+            DisplayVersion,
             UploadFile
         }
     }
