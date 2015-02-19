@@ -1,6 +1,6 @@
 param(
-    [ValidateSet("x86", "x64")]
-    [string]$platform = "x86",
+    [ValidateSet("AnyCPU")]
+    [string]$platform = "AnyCPU",
 
     [string]$target = "Rebuild",
     
@@ -8,8 +8,8 @@ param(
 
     [string]$packageVersion = "0.0.0",
 
-    [ValidateSet("debug", "ilrepack")]
-    [string]$type = "debug"
+    [ValidateSet("debug", "release")]
+    [string]$config = "debug"
 )
 
 # Initialization
@@ -21,6 +21,7 @@ $solutionName = "remotelens-scp"
 $solutionFolder = Join-Path $rootFolder "src\remotelens-scp"
 $outputFolder = Join-Path $rootFolder "bin"
 $releasesDirectory = Join-Path $solutionFolder "Releases"
+$thirdpartyFolder = Join-Path $rootFolder "thirdparty"
 
 # MyGet
 $env:CLI_BUILD = $true
@@ -32,8 +33,8 @@ $MSBuildPath = "${env:ProgramFiles(x86)}\MSBuild\14.0\Bin\msbuild.exe"
 # Make targets
 function Build {
 
-    $buildOutputFolder = Join-Path $outputFolder "$packageVersion\$config\$targetFramework"
- 
+	$buildOutputFolder = Join-Path $outputFolder "$packageVersion\$platform\$config\$targetFramework"
+
     $constants = @(
         "DEPLOY"
     )
@@ -67,17 +68,6 @@ function Build {
 
 }
 
-switch ($type) {
-    # Build in debug mode
-    "debug" {
-        $config = "Debug"
-        Build
-    }
-    # Build installer
-    "installer" {
-        $config = "Release"
-        Build
-    }
-}
+Build
 
 MyGet-Build-Success
